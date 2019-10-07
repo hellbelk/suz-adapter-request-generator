@@ -1,7 +1,7 @@
+const host = process.env.KAFKA_HOST;
 const uuid = require('uuid').v4;
-const kafka = require('kafka-node'),
-    client = new kafka.KafkaClient(),
-    producer = new kafka.Producer(client);
+const kafka = require('kafka-node');
+
 
 const numberTypes = ['quantity', 'time'];
 
@@ -19,9 +19,32 @@ const params = process.argv.slice(2).reduce((obj, raw) => {
     return obj;
 }, {});
 
-if (!params.requestType) {
-    client.close();
-    console.log("requestType is required")
+if (!params.requestType && !params.help) {
+    console.log("requestType is required");
+    return;
+}
+
+if (!host) {
+    console.log("KAFKA_HOST environment variable is required");
+    return;
+}
+
+if (params.help) {
+    if (!params.requestType) {
+        console.log(`available request types:
+PING
+CREATE_ORDER_FOR_EMISSION_IC
+GET_IC_BUFFER_STATUS
+GET_ICS_FROM_THE_ORDER
+CHANGE_STATUS`)
+    } else {
+        switch (params.requestType) {
+            case "CREATE_ORDER_FOR_EMISSION_IC":
+                console.log(`Create request for emission
+`);
+                break;
+        }
+    }
     return;
 }
 
@@ -109,6 +132,62 @@ function emissionRequest() {
     return request;
 }
 
+function pingRequest() {
+    const request = {
+        requestId: uuid(),
+        requestType: 'PING',
+        params: {
+            cttId: params.cttId
+        }
+    };
+
+    return request;
+}
+
+function getBufferStatus() {
+    if (!params.requestId) {
+        console.log('requestId param is required');
+    }
+
+    if (!params.gtin) {
+        console.log('gtin param is required');
+    }
+
+    const request = {
+        requestId: uuid(),
+        requestType: 'GET_IC_BUFFER_STATUS',
+        params: {
+            cttId: params.cttId,
+            requestId: params.requestId, //75ed6b41-3750-4d76-9210-89137f8bd053
+            gtin: params.gtin
+        }
+    };
+
+    return request;
+}
+
+function getICsFromOrder() {
+    if (!params.requestId) {
+        console.log('requestId param is required');
+    }
+
+    if (!params.gtin) {
+        console.log('gtin param is required');
+    }
+
+    const request = {
+        requestId: uuid(),
+        requestType: 'GET_ICS_FROM_THE_ORDER',
+        params: {
+            cttId: params.cttId,
+            requestId: params.requestId, //75ed6b41-3750-4d76-9210-89137f8bd053
+            gtin: params.gtin
+        }
+    };
+
+    return request;
+}
+
 function changeStatusRequest() {
     const request = {
         requestId: uuid(),
@@ -131,9 +210,12 @@ function changeStatusRequest() {
 }
 
 const createRequest = type => {
-    let req = null
+    let req = null;
     switch (type) {
+        case 'PING': req = pingRequest(); break;
         case 'CREATE_ORDER_FOR_EMISSION_IC': req = emissionRequest(); break;
+        case 'GET_IC_BUFFER_STATUS': req = getBufferStatus(); break;
+        case 'GET_ICS_FROM_THE_ORDER': req = getICsFromOrder(); break;
         case 'CHANGE_STATUS': req = changeStatusRequest(); break;
     }
 
@@ -141,6 +223,12 @@ const createRequest = type => {
 
     return JSON.stringify(req);
 };
+
+// createRequest(params.requestType);
+
+console.log(`connecting to ${host}`);
+const client = new kafka.KafkaClient(host),
+producer = new kafka.Producer(client);
 
 producer.on('ready', () => {
     producer.send([{topic: 'adaptersuz.input', messages: createRequest(params.requestType)}], (error, data) => {
@@ -150,11 +238,20 @@ producer.on('ready', () => {
         } else {
             console.log('Success');
         }
-        client.exit();
+        producer.close();
+        client.close();
+        process.exit(0);
     })
 });
 
 producer.on('error', function (err) {
     console.error(err);
+    producer.close();
+    client.close();
+    process.exit(1);
+});
+
+process.on('beforeExit', () => {
     client.close();
 });
+

@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node ."
+    "start": "KAFKA_HOST=91.196.233.34:9092 node .",
+    "test": "KAFKA_HOST=localhost:2181 node ."
   },
   "keywords": [],
   "author": "",
