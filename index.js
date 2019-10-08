@@ -1,7 +1,9 @@
+require('dotenv').config();
+const http = require('http');
 const host = process.env.KAFKA_HOST;
 const uuid = require('uuid').v4;
 const kafka = require('kafka-node');
-
+const db = require('./db');
 
 const numberTypes = ['quantity', 'time'];
 
@@ -36,7 +38,8 @@ PING
 CREATE_ORDER_FOR_EMISSION_IC
 GET_IC_BUFFER_STATUS
 GET_ICS_FROM_THE_ORDER
-CHANGE_STATUS`)
+CHANGE_STATUS
+ROUTING`)
     } else {
         switch (params.requestType) {
             case "CREATE_ORDER_FOR_EMISSION_IC":
@@ -144,15 +147,7 @@ function pingRequest() {
     return request;
 }
 
-function getBufferStatus() {
-    if (!params.requestId) {
-        console.log('requestId param is required');
-    }
-
-    if (!params.gtin) {
-        console.log('gtin param is required');
-    }
-
+async function getBufferStatus() {
     const request = {
         requestId: uuid(),
         requestType: 'GET_IC_BUFFER_STATUS',
@@ -163,27 +158,30 @@ function getBufferStatus() {
         }
     };
 
+    if (!params.requestId) {
+        console.log('requestId param is required');
+    } else {
+        request.gtin = (await db.messageStackByRequestId(params.requestId)).gtin
+    }
+
     return request;
 }
 
-function getICsFromOrder() {
-    if (!params.requestId) {
-        console.log('requestId param is required');
-    }
-
-    if (!params.gtin) {
-        console.log('gtin param is required');
-    }
-
+async function getICsFromOrder() {
     const request = {
         requestId: uuid(),
         requestType: 'GET_ICS_FROM_THE_ORDER',
         params: {
             cttId: params.cttId,
             requestId: params.requestId, //75ed6b41-3750-4d76-9210-89137f8bd053
-            gtin: params.gtin
         }
     };
+
+    if (!params.requestId) {
+        console.log('requestId param is required');
+    } else {
+        request.params.gtin = (await db.messageStackByRequestId(params.requestId)).gtin
+    }
 
     return request;
 }
@@ -209,29 +207,85 @@ function changeStatusRequest() {
     return request;
 }
 
-const createRequest = type => {
+async function routingRequest() {
+    if (!params.type) {
+        console.log('routing type is required');
+
+    }
+
+    const request = {
+        requestId: uuid(),
+        requestType: 'ROUTING',
+        params: {
+            cttId: params.cttId,
+            type: params.type
+        }
+    };
+
+    switch(params.type) {
+        case 'close_suborder':
+            if (params.requestId) {
+                const r = await db.messageStackByRequestId(params.requestId);
+                request.params.lastBlockId = r.lastblockid;
+                request.params.gtin = r.gtin;
+                request.params.orderId = r.orderid;
+            } else {
+                console.log('requestId is required')
+            }
+            break;
+        case 'usage_report':
+            const body = {
+                usageType: 'VERIFIED',
+                expirationDate: `01.01.${new Date().getFullYear()}`,
+                orderType: 1,
+                seriesNumber: '123',
+                subjectId: '00000000000397'
+            };
+            if (params.requestId) {
+                body.sntins = await db.getCodes(params.requestId);
+            } else {
+                console.log('requestId is required')
+            }
+            request.params.request = JSON.stringify(body);
+            break;
+        case 'get_reports_status':
+            if (params.reportId) {
+                request.params.reportId = params.reportId
+            } else {
+                console.log('reportId is required')
+            }
+            break;
+    }
+    return request
+}
+
+const createRequest = async type => {
     let req = null;
     switch (type) {
         case 'PING': req = pingRequest(); break;
         case 'CREATE_ORDER_FOR_EMISSION_IC': req = emissionRequest(); break;
-        case 'GET_IC_BUFFER_STATUS': req = getBufferStatus(); break;
-        case 'GET_ICS_FROM_THE_ORDER': req = getICsFromOrder(); break;
+        case 'GET_IC_BUFFER_STATUS': req = await getBufferStatus(); break;
+        case 'GET_ICS_FROM_THE_ORDER': req = await getICsFromOrder(); break;
         case 'CHANGE_STATUS': req = changeStatusRequest(); break;
+        case 'ROUTING': req = await routingRequest(); break;
     }
 
     console.log(JSON.stringify(req, null , 2));
 
     return JSON.stringify(req);
 };
-
-// createRequest(params.requestType);
+// (async () => {
+//     await createRequest(params.requestType);
+// })();
+//
+// return;
 
 console.log(`connecting to ${host}`);
 const client = new kafka.KafkaClient(host),
 producer = new kafka.Producer(client);
 
-producer.on('ready', () => {
-    producer.send([{topic: 'adaptersuz.input', messages: createRequest(params.requestType)}], (error, data) => {
+producer.on('ready', async () => {
+    producer.send([{topic: 'adaptersuz.input', messages: await createRequest(params.requestType)}], (error, data) => {
         if (error) {
             console.error('Error!!!');
             console.error(error);

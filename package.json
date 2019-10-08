@@ -5,13 +5,15 @@
   "main": "index.js",
   "scripts": {
     "start": "KAFKA_HOST=91.196.233.34:9092 node .",
-    "test": "KAFKA_HOST=localhost:2181 node ."
+    "test": "node ."
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "dotenv": "^8.1.0",
     "kafka-node": "^4.1.3",
+    "pg": "^7.12.1",
     "uuid": "^3.3.3"
   }
 }
