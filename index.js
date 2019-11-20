@@ -161,7 +161,7 @@ async function getBufferStatus() {
     if (!params.requestId) {
         console.log('requestId param is required');
     } else {
-        request.gtin = (await db.messageStackByRequestId(params.requestId)).gtin
+        request.params.gtin = (await db.messageStackByRequestId(params.requestId)).gtin
     }
 
     return request;
@@ -259,11 +259,23 @@ async function routingRequest() {
     return request
 }
 
+const testdata = {
+  "requestId": uuid(),
+  "requestType": "CREATE_ORDER_FOR_EMISSION_IC",
+  "params": {
+    "cttId": "77f5ccc7bd27d7",
+    "request": "{\"products\":[{\"gtin\":\"82073459958601\",\"quantity\":7,\"serialNumberType\":\"SELF_MADE\",\"serialNumbers\":[\"sUOeKviSNXTog\",\"cCQnFBssWAqCi\",\"LdJ1Biw3VWhMG\",\"0MhRBCsjjpLTG\",\"jPwRbmwwKdhi5\",\"lTmgjkWPDkLIk\",\"0mG6mwZOfw2TQ\"],\"templateId\":2}],\"subjectId\":\"47a2a63d-f814-46a5-b3b4-f270f6a2051a\",\"freeCode\":true,\"paymentType\":2}"
+  }
+}
+
+const  ttt = {"poolInfos":[{"status":"REJECTED","quantity":7,"leftInRegistrar":7,"rejectionReason":"Order #261944 backup failed: An attempt to add existing marking code. Key (cis)=(018207345995860121sUOeKviSNXTog) already exists.","registrarId":"0000000077770003","isRegistrarReady":true,"registrarErrorCount":0,"lastRegistrarErrorTimestamp":0}],"leftInBuffer":0,"poolsExhausted":true,"totalCodes":7,"unavailableCodes":7,"availableCodes":0,"orderId":"f97a06c7-118f-44a8-a6e5-65f13c7b08df","gtin":"82073459958601","bufferStatus":"REJECTED","rejectionReason":"All pools in statuses: REJECTED or REQUEST_ERROR","totalPassed":0,"omsId":"2d08c2fa-f9af-47ef-8ceb-295768494c5b"}
+
 const createRequest = async type => {
     let req = null;
     switch (type) {
         case 'PING': req = pingRequest(); break;
-        case 'CREATE_ORDER_FOR_EMISSION_IC': req = emissionRequest(); break;
+        case 'CREATE_ORDER_FOR_EMISSION_IC': req = testdata; break;
+        //case 'CREATE_ORDER_FOR_EMISSION_IC': req = emissionRequest(); break;
         case 'GET_IC_BUFFER_STATUS': req = await getBufferStatus(); break;
         case 'GET_ICS_FROM_THE_ORDER': req = await getICsFromOrder(); break;
         case 'CHANGE_STATUS': req = changeStatusRequest(); break;
