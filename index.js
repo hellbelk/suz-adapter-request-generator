@@ -274,8 +274,8 @@ const createRequest = async type => {
     let req = null;
     switch (type) {
         case 'PING': req = pingRequest(); break;
-        case 'CREATE_ORDER_FOR_EMISSION_IC': req = testdata; break;
-        //case 'CREATE_ORDER_FOR_EMISSION_IC': req = emissionRequest(); break;
+        // case 'CREATE_ORDER_FOR_EMISSION_IC': req = testdata; break;
+        case 'CREATE_ORDER_FOR_EMISSION_IC': req = emissionRequest(); break;
         case 'GET_IC_BUFFER_STATUS': req = await getBufferStatus(); break;
         case 'GET_ICS_FROM_THE_ORDER': req = await getICsFromOrder(); break;
         case 'CHANGE_STATUS': req = changeStatusRequest(); break;
